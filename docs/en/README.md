@@ -44,7 +44,7 @@ The project is released under the MIT License and intended for educational and p
 
 ## Requirements
 
-- Python 3.9 or higher
+- Python 3.10 or higher
 - [ytmusicapi](https://ytmusicapi.readthedocs.io/)
 - A **YouTube Music account** (Premium not required)
 - Your **authenticated request headers** exported from browser to authenticate `ytmusicapi`
