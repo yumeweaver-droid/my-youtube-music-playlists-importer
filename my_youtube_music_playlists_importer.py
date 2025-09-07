@@ -5,7 +5,7 @@
 # Imports playlists from JSON files (exported from Spotify) into YouTube Music.
 #
 # License: MIT
-# Date: 2025-07-03
+# Date: 2025-09-07 (Sanitized)
 #
 # This script is provided for educational purposes.
 # It is free to use and modify under the MIT License.
@@ -23,12 +23,12 @@
 my_youtube_music_playlists_importer.py
 
 Usage:
-    python my_youtube_music_playlists_importer.py --playlists_file <path_to_json_file> [--allow_duplicates] [--delete_if_exists]
+    python my_youtube_music_playlists_importer.py [--playlists_file <path_to_json>] [--allow_duplicates] [--delete_if_exists]
 
 Options:
-    --playlists_file <path_to_json_file>   Path to the JSON file containing exported playlists.
-    --allow_duplicates                      Allow adding duplicate tracks to playlists.
-    --delete_if_exists                      Delete existing playlists with the same name before creating new ones.
+    --playlists_file <path>   Path to the JSON file. Defaults to 'spotify_playlists.json'.
+    --allow_duplicates          Allow adding duplicate tracks to playlists.
+    --delete_if_exists          Delete existing playlists with the same name before creating new ones.
 """
 
 import argparse
@@ -39,6 +39,7 @@ import re
 import sys
 import time
 from pathlib import Path
+from textwrap import dedent # <-- Import the dedent function
 
 import unicodedata
 import ytmusicapi
@@ -53,22 +54,13 @@ if sys.version_info < (3, 10):
 
 def load_env():
     """
-    Load and validate required and optional environment variables from .env file.
+    Load optional environment variables from .env file.
 
     Returns:
         dict: Dictionary containing configuration variables.
-    Raises:
-        ValueError: If any required variable is missing or empty.
     """
     load_dotenv()
-    required_vars = ["HEADERS_RAW_FILE"]
     config = {}
-
-    for var in required_vars:
-        val = os.getenv(var)
-        if not val or not val.strip():
-            raise ValueError(f"Missing required environment variable: {var}")
-        config[var] = val.strip()
 
     # Optional variables
     config["AUTH_GENERATED_FILE"] = os.getenv("AUTH_GENERATED_FILE", "").strip() or "./browser.json"
@@ -263,16 +255,59 @@ def import_playlists_from_json(json_file: Path, ytmusic: YTMusic, logger, allow_
 
 def main():
     """
-    Entry point for script execution. Parses arguments, loads configuration, 
+    Entry point for script execution. Parses arguments, loads configuration,
     initializes logging and YTMusic client, and runs import process.
     """
     start_time = time.time()
 
+    # --- Authentication headers are now stored directly in the script ---
+    # IMPORTANT: You must paste your own, current header values here for the script to work.
+    headers_raw_string = dedent("""
+        accept: */*
+        accept-encoding: gzip, deflate, br, zstd
+        accept-language: en,en-US;q=0.9,bn;q=0.8
+        authorization:
+        cache-control: no-cache
+        content-length: 2502
+        content-type: application/json
+        cookie:
+        origin: https://music.youtube.com
+        pragma: no-cache
+        priority: u=1, i
+        referer: https://music.youtube.com/
+        sec-ch-ua: "Not;A=Brand";v="99", "Google Chrome";v="139", "Chromium";v="139"
+        sec-ch-ua-arch: "x86"
+        sec-ch-ua-bitness: "64"
+        sec-ch-ua-form-factors: "Desktop"
+        sec-ch-ua-full-version: "139.0.7258.155"
+        sec-ch-ua-full-version-list: "Not;A=Brand";v="99.0.0.0", "Google Chrome";v="139.0.7258.155", "Chromium";v="139.0.7258.155"
+        sec-ch-ua-mobile: ?0
+        sec-ch-ua-model: ""
+        sec-ch-ua-platform: "Windows"
+        sec-ch-ua-platform-version: "19.0.0"
+        sec-ch-ua-wow64: ?0
+        sec-fetch-dest: empty
+        sec-fetch-mode: same-origin
+        sec-fetch-site: same-origin
+        user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36
+        x-browser-channel: stable
+        x-browser-copyright: Copyright 2025 Google LLC. All rights reserved.
+        x-browser-validation:
+        x-browser-year: 2025
+        x-client-data:
+        x-goog-authuser: 0
+        x-goog-visitor-id:
+        x-origin: https://music.youtube.com
+        x-youtube-bootstrap-logged-in: true
+        x-youtube-client-name: 67
+        x-youtube-client-version: 1.20250903.03.00
+    """).strip()
+
     config = load_env()
 
     parser = argparse.ArgumentParser(description="Import Spotify-exported playlists (JSON files) into YouTube Music.")
-    parser.add_argument("--playlists_file", type=str,
-                        help="Path to the JSON file containing exported playlists.")
+    parser.add_argument("--playlists_file", type=str, default="spotify_playlists.json",
+                        help="Path to the JSON file containing exported playlists. Defaults to 'spotify_playlists.json'.")
     parser.add_argument("--allow_duplicates", action="store_true",
                         help="Allow adding duplicate tracks to playlists.")
     parser.add_argument("--delete_if_exists", action="store_true",
@@ -293,30 +328,18 @@ def main():
     # Validate and resolve playlists file path
     playlists_file = Path(args.playlists_file).expanduser().resolve()
     if not playlists_file.exists():
-        logger.error(f"Error: playlists_file not found: {playlists_file}")
-        sys.exit(1)
-
-    # Validate headers file
-    header_raw_file = Path(config["HEADERS_RAW_FILE"]).expanduser().resolve()
-    if not header_raw_file.exists() or not header_raw_file.is_file():
-        logger.error(f"Headers file not found or invalid: {header_raw_file}")
-        sys.exit(1)
-    logger.info(f"Using headers file: {header_raw_file}")
-
-    # Read headers file content
-    try:
-        with header_raw_file.open('r', encoding='utf-8') as f:
-            headers_raw_file_content = f.read()
-    except Exception as e:
-        logger.exception(f"Failed to read headers file: {header_raw_file}. Exception: {e}")
+        logger.error(f"Error: Playlists file not found: {playlists_file}")
+        logger.error("Please make sure 'spotify_playlists.json' is in the same directory, or specify the path using --playlists_file")
         sys.exit(1)
 
     # Initialize YTMusic
     try:
-        ytmusicapi.setup(filepath=auth_generated_file, headers_raw=headers_raw_file_content)
+        logger.info("Initializing YouTube Music API with embedded headers...")
+        ytmusicapi.setup(filepath=auth_generated_file, headers_raw=headers_raw_string)
         ytmusic = YTMusic(auth_generated_file)
+        logger.info("YouTube Music API initialized successfully.")
     except Exception as e:
-        logger.exception(f"Failed to initialize YTMusic with headers file: {header_raw_file}. Exception: {e}")
+        logger.exception(f"Failed to initialize YTMusic. Exception: {e}")
         sys.exit(1)
 
     # Import playlists
